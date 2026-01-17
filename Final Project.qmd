@@ -1,0 +1,236 @@
+---
+title: "Appendix"
+author: "Eve Lindberg, Tom Baker, & Stockton Nelson"
+format: pdf
+editor: visual
+code-font-size: 8pt
+geometry: margin = 0.1in
+---
+
+## Introduction
+
+```{r, include = FALSE}
+#Downloading Libraries
+library(dplyr)
+library(janitor)
+library(tidyverse)
+```
+
+```{r}
+#Bringing in Data
+music <- read.csv("Streaming.csv") |>
+  clean_names()
+
+#Cleaning up Data
+spotify_music <- music |>
+  mutate(spotify_streams = as.numeric(str_replace_all(spotify_streams, ",", ""))/1000000)
+youtube_music <- music |>
+  mutate(you_tube_views = as.numeric(str_replace_all(you_tube_views, ",", ""))/10000000)
+
+#Getting Taylor Swift Music
+tswizzle_spotify <- spotify_music |>
+  filter(artist == "Taylor Swift") |>
+  select(track, release_date, all_time_rank, spotify_streams)
+tswizzle_youtube <- youtube_music |>
+  filter(artist == "Taylor Swift") |>
+  select(track, release_date, all_time_rank, you_tube_views)
+```
+
+### Table 1
+
+```{r}
+#Displaying Summary Statistics
+summary(tswizzle_spotify$spotify_streams)
+summary(tswizzle_youtube$you_tube_views)
+```
+
+### Figure 1
+
+```{r}
+#Key Figures
+#Histogram of Spotify Streams
+hist(tswizzle_spotify$spotify_streams, col = "#16A247", xlab = "Spotify Streams per Song", main = "Distribution of Taylor Swift Spotify Streams")
+```
+
+### Figure 2
+
+```{r}
+#Histogram of YouTube Views
+hist(tswizzle_youtube$you_tube_views,
+     col = "#E00000",
+     xlab = "YouTube Views per Video",
+     main = "Distribution of Taylor Swift YouTube Views")
+```
+
+### Figure 3
+
+```{r}
+#Boxplot of Spotify Streams
+boxplot(tswizzle_spotify$spotify_streams, horizontal = T,
+        col = "#16A247",
+        xlab = "Spotify Streams per Song",
+        main = "Distribution of Taylor Swift Spotify Streams")
+```
+
+### Figure 4
+
+```{r}
+#Boxplot of YouTube Views
+boxplot(tswizzle_youtube$you_tube_views, horizontal = T,
+        col = "#E00000",
+        xlab = "YouTube Views per Video",
+        main = "Distribution of Taylor Swift YouTube Views")
+```
+
+## Methods
+
+### Function 1
+
+```{r}
+#Function for Finding Prior
+get.beta.ab <- function(mu, sigma){
+  s2 <- sigma^2
+  a <- mu*(mu*(1-mu)/s2 - 1)
+  b <- (1-mu)*(mu*(1-mu)/s2 - 1)
+  if (is.nan(a) | is.na(a) | a<=0 |
+      is.nan(b) | is.na(b) | b<=0) {
+        print("New choice for mu and sigma required")
+  } else {
+    return(c(round(a,3), round(b,3))) 
+  }
+}
+
+#Finding Spotify and YouTube Prior
+a <- get.beta.ab(0.08, 0.01)[1]
+b <- get.beta.ab(0.08, 0.01)[2]
+a ; b
+
+#Spotify Prior and Likelihood
+n_s <- sum(spotify_music$spotify_streams, na.rm = T)
+y_s <- sum(tswizzle_spotify$spotify_streams, na.rm = T)
+
+#YouTube Prior and Likelihood
+n_y <- sum(youtube_music$you_tube_views, na.rm = T)
+y_y <- sum(tswizzle_youtube$you_tube_views, na.rm = T)
+```
+
+### Figure 5
+
+```{r}
+#Prior Plot
+#Plot setup
+theta <- seq(0, 1, length = 1001)
+
+#Plotting Prior
+plot(theta, dbeta(theta, a, b), 
+     type = 'l', 
+     lwd = 2,
+     col = "black",
+     xlab = expression(theta),
+     ylab = "Probability Density",
+     main = "Spotify and YouTube Prior Density")
+```
+
+## Results
+
+```{r}
+#Spotify Posterior
+astar_s <- a + y_s
+bstar_s <- b + n_s - y_s
+
+#YouTube Poseterior
+astar_y <- a + y_y
+bstar_y <- b + n_y - y_y
+```
+
+### Figure 6
+
+```{r}
+#Prior and Posterior Plot for Spotify
+#Plot setup
+theta <- seq(0.01, 0.02, length = 1001)
+
+#Plotting Posterior
+plot(theta,dbeta(theta, astar_s, bstar_s), 
+     type = 'l', 
+     lwd = 2,
+     col = "#16A247",
+     xlab = expression(theta),
+     ylab = "Probability Density",
+     main = "Spotify Posterior Density")
+```
+
+### Figure 7
+
+```{r}
+#Prior and Posterior Plot for YouTube
+#Plot setup
+theta <- seq(0.01, 0.02, length = 1001)
+
+#Plotting Posterior
+plot(theta,dbeta(theta, astar_y, bstar_y), 
+     type = 'l', 
+     lwd = 2,
+     col = "#E00000",
+     xlab = expression(theta),
+     ylab = "Probability Density",
+     main = "YouTube Posterior Densities")
+```
+
+```{r}
+#Posterior Inference
+#Expected Value and Variance of Spotify
+astar_s/(astar_s+bstar_s)
+(astar_s * bstar_s) / ((astar_s + bstar_s)^2 * (astar_s + bstar_s + 1))
+
+#95% Credible Interval of Spotify
+qbeta(c(0.025, 0.975), astar_s, bstar_s)
+
+#Expected Value and Variance of YouTube
+astar_y/(astar_y+bstar_y)
+(astar_y * bstar_y) / ((astar_y + bstar_y)^2 * (astar_y + bstar_y + 1))
+
+#95% Credible Interval of YouTube
+qbeta(c(0.025, 0.975), astar_y, bstar_y)
+```
+
+```{r}
+#Monte Carlo Setup
+set.seed(251)
+sim <- 1e6
+theta_s <- rbeta(sim, astar_s, bstar_s)
+theta_y <- rbeta(sim, astar_y, bstar_y)
+theta_diff <- theta_s - theta_y
+
+#P(Spotify > YouTube)
+mean(theta_diff > 0)
+
+#95% Credible Interval of the Difference
+quantile(theta_diff, c(0.025, 0.975))
+```
+
+### Figure 8
+
+```{r}
+#Prior and Posterior Plot for YouTube
+#Plot setup
+theta <- seq(0, 1, length = 1001)
+
+#Plotting Difference of the Posteriors
+plot(density(theta_diff), 
+     type = 'l', 
+     lwd = 2,
+     col = "black",
+     xlab = expression(theta),
+     ylab = "Probability Density",
+     main = "Difference of the Posterior Densities")
+```
+
+```{r}
+#Getting Posterior Predictive Distribution
+thetas_s <- rbeta(sim, astar_s, bstar_s)
+thetas_y <- rbeta(sim, astar_y, bstar_y)
+
+quantile(thetas_s, c(0.025, 0.975))
+quantile(thetas_y, c(0.025, 0.975))
+```
